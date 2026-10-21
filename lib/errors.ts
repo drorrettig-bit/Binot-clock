@@ -22,6 +22,8 @@ export function friendlyError(err: unknown): string {
     return "נשלחו יותר מדי קודים. המתן דקה ונסה שוב.";
   if (msg.toLowerCase().includes("not authorized") && msg.toLowerCase().includes("email"))
     return "שרת המייל עוד לא מוגדר לשליחה לכתובת הזו. פנה למנהל המערכת.";
+  if (msg.toLowerCase().includes("sending") && msg.toLowerCase().includes("email") || code === "unexpected_failure")
+    return "לא הצלחנו לשלוח את המייל עם הקוד. נסו שוב בעוד דקה, ואם זה חוזר, פנו למנהל המערכת.";
   if (msg.toLowerCase().includes("failed to fetch"))
     return "אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב.";
   return msg && /[א-ת]/.test(msg) ? msg : "משהו השתבש. נסה שוב בעוד רגע.";
