@@ -190,6 +190,11 @@ h1, h2, h3 { text-wrap: balance; }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 @media (hover: hover) and (pointer: fine) { .chip:not([aria-pressed="true"]):hover { color: var(--ink); border-color: var(--accent); } }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.note-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.fix-row td { background: var(--surface-2); border-top: 0; }
+.fix { display: grid; gap: 10px; padding-block: 4px 8px; white-space: normal; }
+.reason { display: grid; gap: 8px; }
+.reason input { border: 1px solid var(--line-strong); border-radius: 9px; padding: 8px 10px; background: var(--surface); max-width: 420px; font-size: .92rem; color: var(--ink); }
 .tile-link { text-align: start; cursor: pointer; font: inherit; color: inherit; }
 @media (hover: hover) and (pointer: fine) { .tile-link:hover { border-color: var(--accent); } }
 .head { background: var(--header); color: var(--header-ink); border-bottom: 1px solid var(--header-line); position: relative; }

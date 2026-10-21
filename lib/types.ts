@@ -6,7 +6,8 @@ export type AttendanceStatus =
   | "rejected_distance"
   | "rejected_accuracy"
   | "rejected_sequence"
-  | "rejected_inactive";
+  | "rejected_inactive"
+  | "voided";
 
 export interface Profile {
   id: string;

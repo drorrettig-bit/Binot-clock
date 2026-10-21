@@ -12,12 +12,13 @@ export const ACTION_LABEL: Record<AttendanceAction, string> = {
   check_out: "יציאה",
 };
 
-export const STATUS_LABEL: Record<AttendanceStatus, { text: string; tone: "ok" | "warn" | "bad" }> = {
+export const STATUS_LABEL: Record<AttendanceStatus, { text: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
   approved: { text: "אושר", tone: "ok" },
   rejected_distance: { text: "מחוץ לרדיוס", tone: "bad" },
   rejected_accuracy: { text: "GPS לא מדויק", tone: "warn" },
   rejected_sequence: { text: "רצף שגוי", tone: "warn" },
   rejected_inactive: { text: "משתמש מושבת", tone: "bad" },
+  voided: { text: "בוטל", tone: "neutral" },
 };
 
 const TZ = "Asia/Jerusalem";
@@ -50,3 +51,6 @@ export function minutesLabel(min: number): string {
   const m = Math.round(min % 60);
   return `${h}:${String(m).padStart(2, "0")}`;
 }
+
+/** סיבות מוכנות לתיקון ידני */
+export const FIX_REASONS = ["שכח לדווח", "בעיית GPS בבניין", "הטלפון לא היה זמין", "אישור הרב / ראש הישיבה", "דיווח כפול או שגוי"];

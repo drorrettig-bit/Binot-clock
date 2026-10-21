@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/lib/useMe";
-import { ACTION_LABEL, ROLE_LABEL, STATUS_LABEL, dayKey, fmtDate, fmtTime, minutesLabel, startOfIsraelDay } from "@/lib/labels";
+import { ACTION_LABEL, FIX_REASONS, ROLE_LABEL, STATUS_LABEL, dayKey, fmtDate, fmtTime, minutesLabel, startOfIsraelDay } from "@/lib/labels";
 import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
 import { DownloadIcon } from "@/components/Icons";
@@ -54,7 +54,7 @@ export default function AdminPage() {
     setTiles({
       inside: [...last.values()].filter((a) => a === "check_in").length,
       checkins: rows.filter((r) => r.status === "approved" && r.action === "check_in").length,
-      rejected: rows.filter((r) => r.status !== "approved").length,
+      rejected: rows.filter((r) => r.status.startsWith("rejected")).length,
     });
   }, []);
 
@@ -118,7 +118,7 @@ export default function AdminPage() {
         </div>
 
         {tab === "log" && <LogTab key={logKey} people={listed} onChange={loadTiles} initialPreset={logPreset} />}
-        {tab === "hours" && <HoursTab />}
+        {tab === "hours" && <HoursTab people={listed} />}
         {tab === "alerts" && <AlertsTab people={listed} />}
         {tab === "users" && <UsersTab people={people} me={profile!} onChange={loadPeople} />}
         {tab === "settings" && org && <SettingsTab org={org} onSaved={reload} />}
@@ -128,7 +128,7 @@ export default function AdminPage() {
 }
 
 /* ---------------- log ---------------- */
-type Preset = "all" | "approved" | "rejected" | "rejected_distance" | "rejected_accuracy" | "rejected_sequence" | "rejected_inactive" | "manual";
+type Preset = "all" | "approved" | "rejected" | "rejected_distance" | "rejected_accuracy" | "rejected_sequence" | "rejected_inactive" | "manual" | "voided";
 const PRESETS: { key: Preset; label: string; file: string }[] = [
   { key: "all", label: "כל הדיווחים", file: "all" },
   { key: "approved", label: "מאושרים", file: "approved" },
@@ -138,6 +138,7 @@ const PRESETS: { key: Preset; label: string; file: string }[] = [
   { key: "rejected_sequence", label: "נדחו: רצף שגוי", file: "rejected_sequence" },
   { key: "rejected_inactive", label: "נדחו: משתמש מושבת", file: "rejected_inactive" },
   { key: "manual", label: "תיקונים ידניים", file: "manual" },
+  { key: "voided", label: "בוטלו", file: "voided" },
 ];
 
 type PersonRow = {
@@ -154,6 +155,7 @@ function byPerson(rows: SearchRow[]): PersonRow[] {
             approved: 0, rejected: 0, topReason: "", last: r.recorded_at, reasons: new Map() };
       m.set(r.user_id, p);
     }
+    if (r.status === "voided") continue;
     if (r.status === "approved") p.approved++;
     else { p.rejected++; p.reasons.set(r.status, (p.reasons.get(r.status) ?? 0) + 1); }
     if (r.recorded_at > p.last) p.last = r.recorded_at;
@@ -175,9 +177,10 @@ function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChan
   const [rows, setRows] = useState<SearchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [showManual, setShowManual] = useState(false);
+  const [fixing, setFixing] = useState<number | null>(null);
 
   const fetchRows = useCallback(async () => {
-    const serverStatus = preset === "approved" || preset.startsWith("rejected_") ? preset : null;
+    const serverStatus = preset === "approved" || preset === "voided" || preset.startsWith("rejected_") ? preset : null;
     const { data, error } = await supabase().rpc("search_attendance", {
       p_query: q.trim() || null,
       p_member_type: role || null,
@@ -190,7 +193,7 @@ function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChan
     });
     if (error) throw error;
     let r = (data as SearchRow[]) ?? [];
-    if (preset === "rejected") r = r.filter((x) => x.status !== "approved");
+    if (preset === "rejected") r = r.filter((x) => x.status.startsWith("rejected"));
     if (preset === "manual") r = r.filter((x) => x.source === "admin_manual");
     return r;
   }, [q, role, from, to, preset]);
@@ -284,11 +287,12 @@ function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChan
           {view === "rows" ? (
             <table>
               <thead>
-                <tr><th>תאריך</th><th>שעה</th><th>שם</th><th>ת.ז</th><th>תפקיד</th><th>פעולה</th><th>סטטוס</th><th>מרחק</th><th>מקור</th></tr>
+                <tr><th>תאריך</th><th>שעה</th><th>שם</th><th>ת.ז</th><th>תפקיד</th><th>פעולה</th><th>סטטוס</th><th>מרחק</th><th>מקור</th><th>הערה</th><th></th></tr>
               </thead>
               <tbody>
                 {rows.slice(0, 300).map((r) => (
-                  <tr key={r.log_id} className={r.is_active ? "" : "off"}>
+                  <Fragment key={r.log_id}>
+                  <tr className={r.is_active && r.status !== "voided" ? "" : "off"}>
                     <td className="num">{fmtDate(r.recorded_at)}</td>
                     <td className="num">{fmtTime(r.recorded_at)}</td>
                     <td><span className="who">{r.full_name}</span>{!r.is_active && <> <span className="pill neutral">מושבת</span></>}</td>
@@ -297,8 +301,32 @@ function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChan
                     <td>{ACTION_LABEL[r.action]}</td>
                     <td><span className={`pill ${STATUS_LABEL[r.status].tone}`}>{STATUS_LABEL[r.status].text}</span></td>
                     <td className="num">{r.distance_m != null ? `${Math.round(r.distance_m)} מ'` : "—"}</td>
-                    <td>{r.source === "admin_manual" ? <span className="pill warn" title={r.note ?? ""}>תיקון ידני</span> : <span className="muted">GPS</span>}</td>
+                    <td>{r.source === "admin_manual" ? <span className="pill warn plain">תיקון ידני</span> : <span className="muted">GPS</span>}</td>
+                    <td className="note-cell" title={r.note ?? ""}>{r.note ?? ""}</td>
+                    <td>
+                      {(r.status === "approved" || r.status.startsWith("rejected")) && (
+                        <button className="btn small press" onClick={() => setFixing(fixing === r.log_id ? null : r.log_id)} aria-expanded={fixing === r.log_id}>
+                          תיקון
+                        </button>
+                      )}
+                    </td>
                   </tr>
+                  {fixing === r.log_id && (
+                    <tr className="fix-row">
+                      <td colSpan={11}>
+                        <FixRow
+                          row={r}
+                          onCancel={() => setFixing(null)}
+                          onDone={() => {
+                            setFixing(null);
+                            onChange();
+                            fetchRows().then(setRows).catch(() => {});
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -337,11 +365,69 @@ function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChan
   );
 }
 
-function ManualForm({ people, onDone }: { people: Profile[]; onDone: () => void }) {
+function ReasonPicker({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+  return (
+    <div className="reason">
+      <div className="chips">
+        {FIX_REASONS.map((r) => (
+          <button key={r} type="button" className="chip press" aria-pressed={value === r} onClick={() => onChange(r)}>{r}</button>
+        ))}
+      </div>
+      <input id={id} value={value} onChange={(e) => onChange(e.target.value)} placeholder="או לכתוב סיבה אחרת" maxLength={200} />
+    </div>
+  );
+}
+
+/** תיקון של שורה קיימת ביומן: אישור דיווח שנדחה, או ביטול דיווח שאושר */
+function FixRow({ row, onCancel, onDone }: { row: SearchRow; onCancel: () => void; onDone: () => void }) {
   const toast = useToast();
-  const [userId, setUserId] = useState("");
-  const [action, setAction] = useState<AttendanceAction>("check_out");
-  const [when, setWhen] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const approving = row.status.startsWith("rejected");
+
+  async function save() {
+    if (!reason.trim()) {
+      toast("חובה לבחור או לכתוב סיבה");
+      return;
+    }
+    setBusy(true);
+    const { error } = approving
+      ? await supabase().rpc("admin_approve_rejected", { p_log_id: row.log_id, p_reason: reason.trim() })
+      : await supabase().rpc("admin_void_attendance", { p_log_id: row.log_id, p_reason: reason.trim() });
+    setBusy(false);
+    if (error) {
+      toast(friendlyError(error));
+      return;
+    }
+    toast(approving ? "הדיווח אושר ידנית" : "הדיווח בוטל. הוא נשאר ביומן מסומן כמבוטל");
+    onDone();
+  }
+
+  return (
+    <div className="fix">
+      <p className="eyebrow" style={{ margin: 0 }}>
+        {approving
+          ? `אישור ידני: ${ACTION_LABEL[row.action]} של ${row.full_name} ב-${fmtTime(row.recorded_at)} ייחשב כמאושר`
+          : `ביטול: ${ACTION_LABEL[row.action]} של ${row.full_name} ב-${fmtTime(row.recorded_at)} לא ייספר בשעות`}
+      </p>
+      <ReasonPicker value={reason} onChange={setReason} id={`fix-${row.log_id}`} />
+      <div className="confirm">
+        <button className={`btn small press ${approving ? "primary" : "danger"}`} onClick={save} disabled={busy}>
+          {busy ? "שומר…" : approving ? "אישור הדיווח" : "ביטול הדיווח"}
+        </button>
+        <button className="btn small press" onClick={onCancel}>סגירה</button>
+      </div>
+    </div>
+  );
+}
+
+export type ManualPrefill = { userId: string; action: AttendanceAction; when: string };
+
+function ManualForm({ people, onDone, prefill, onCancel }: { people: Profile[]; onDone: () => void; prefill?: ManualPrefill; onCancel?: () => void }) {
+  const toast = useToast();
+  const [userId, setUserId] = useState(prefill?.userId ?? "");
+  const [action, setAction] = useState<AttendanceAction>(prefill?.action ?? "check_out");
+  const [when, setWhen] = useState(prefill?.when ?? "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -349,7 +435,7 @@ function ManualForm({ people, onDone }: { people: Profile[]; onDone: () => void 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!userId || !when || !note.trim()) {
-      setError("יש לבחור משתמש, זמן, ולכתוב סיבה.");
+      setError("יש לבחור משתמש, זמן, וסיבה.");
       return;
     }
     setBusy(true);
@@ -369,8 +455,8 @@ function ManualForm({ people, onDone }: { people: Profile[]; onDone: () => void 
   }
 
   return (
-    <form className="card panel" style={{ marginBottom: 14 }} onSubmit={save} noValidate>
-      <p className="eyebrow">תיקון ידני · נרשם כשורה חדשה עם שם המנהל, בלי לשנות דיווחים קיימים</p>
+    <form className="card panel" style={{ marginBottom: 14, display: "grid", gap: 12 }} onSubmit={save} noValidate>
+      <p className="eyebrow" style={{ margin: 0 }}>הוספת דיווח ידני · נרשם כשורה חדשה עם שם המנהל והסיבה</p>
       <div className="filters" style={{ marginBottom: 0 }}>
         <label className="grow">משתמש
           <select id="muser" value={userId} onChange={(e) => setUserId(e.target.value)}>
@@ -385,22 +471,30 @@ function ManualForm({ people, onDone }: { people: Profile[]; onDone: () => void 
           </select>
         </label>
         <label>מתי<input type="datetime-local" id="mwhen" value={when} onChange={(e) => setWhen(e.target.value)} /></label>
-        <label className="grow">סיבה<input id="mnote" value={note} onChange={(e) => setNote(e.target.value)} placeholder="למשל: שכח לדווח יציאה" /></label>
-        <button className="btn primary press" type="submit" disabled={busy}>{busy ? "שומר…" : "שמירה"}</button>
       </div>
-      {error && <p className="err" style={{ marginTop: 10 }}>{error}</p>}
+      <div className="field" style={{ fontSize: ".78rem", color: "var(--muted)" }}>
+        סיבה (חובה)
+        <ReasonPicker value={note} onChange={setNote} id="mnote" />
+      </div>
+      {error && <p className="err">{error}</p>}
+      <div className="confirm">
+        <button className="btn primary press" type="submit" disabled={busy}>{busy ? "שומר…" : "שמירת התיקון"}</button>
+        {onCancel && <button className="btn press" type="button" onClick={onCancel}>ביטול</button>}
+      </div>
     </form>
   );
 }
 
 /* ---------------- hours ---------------- */
-function HoursTab() {
+function HoursTab({ people }: { people: Profile[] }) {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [role, setRole] = useState<MemberType | "">("");
   const [from, setFrom] = useState(daysAgo(6));
   const [to, setTo] = useState(dayKey());
   const [rows, setRows] = useState<DailyRow[]>([]);
+  const [prefill, setPrefill] = useState<ManualPrefill | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(async () => {
@@ -415,7 +509,7 @@ function HoursTab() {
       setRows((data as DailyRow[]) ?? []);
     }, 250);
     return () => clearTimeout(t);
-  }, [q, role, from, to, toast]);
+  }, [q, role, from, to, toast, reloadKey]);
 
   const total = rows.reduce((s, r) => s + (r.total_minutes ?? 0), 0);
   const name = (r: DailyRow) => `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim();
@@ -447,6 +541,18 @@ function HoursTab() {
           <DownloadIcon /> ייצוא CSV
         </button>
       </div>
+      {prefill && (
+        <ManualForm
+          key={prefill.userId + prefill.when}
+          people={people}
+          prefill={prefill}
+          onCancel={() => setPrefill(null)}
+          onDone={() => {
+            setPrefill(null);
+            setReloadKey((x) => x + 1);
+          }}
+        />
+      )}
       <div className="card">
         <div className="tablebox">
           <table>
@@ -461,7 +567,14 @@ function HoursTab() {
                   <td className="num">{r.first_in ? fmtTime(r.first_in) : "—"}</td>
                   <td className="num">{r.last_out ? fmtTime(r.last_out) : "—"}</td>
                   <td className="num"><b>{minutesLabel(r.total_minutes)}</b></td>
-                  <td>{r.missing_checkout && <span className="pill warn">חסרה יציאה</span>}</td>
+                  <td>
+                    {r.missing_checkout && (
+                      <span className="confirm">
+                        <span className="pill warn">חסרה יציאה</span>
+                        <button className="btn small press" onClick={() => setPrefill({ userId: r.user_id, action: "check_out", when: `${r.work_date}T18:00` })}>הוספת יציאה</button>
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
