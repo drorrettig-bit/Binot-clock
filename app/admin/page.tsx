@@ -9,12 +9,15 @@ import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
 import { DownloadIcon } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
+import { downloadCsv } from "@/lib/csv";
+import { AlertsTab, sendNudge } from "@/components/admin/AlertsTab";
 import type { AttendanceAction, DailyRow, MemberType, OrgSettings, Profile, SearchRow } from "@/lib/types";
 
-type Tab = "log" | "hours" | "users" | "settings";
+type Tab = "log" | "hours" | "alerts" | "users" | "settings";
 const TABS: [Tab, string][] = [
   ["log", "יומן נוכחות"],
   ["hours", "סיכום שעות"],
+  ["alerts", "התראות וביקורות"],
   ["users", "משתמשים"],
   ["settings", "הגדרות"],
 ];
@@ -23,23 +26,6 @@ function daysAgo(n: number) {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return dayKey(d);
-}
-
-function downloadCsv(name: string, rows: (string | number | null | undefined)[][]) {
-  const cell = (v: string | number | null | undefined) => {
-    const s = String(v ?? "");
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  // BOM כדי ש-Excel יזהה UTF-8 ויציג עברית תקין
-  const csv = "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function AdminPage() {
@@ -133,6 +119,7 @@ export default function AdminPage() {
 
         {tab === "log" && <LogTab key={logKey} people={listed} onChange={loadTiles} initialPreset={logPreset} />}
         {tab === "hours" && <HoursTab />}
+        {tab === "alerts" && <AlertsTab people={listed} />}
         {tab === "users" && <UsersTab people={people} me={profile!} onChange={loadPeople} />}
         {tab === "settings" && org && <SettingsTab org={org} onSaved={reload} />}
       </main>
@@ -554,6 +541,9 @@ function UsersTab({ people, me, onChange }: { people: Profile[]; me: Profile; on
                         </span>
                       ) : p.is_active ? (
                         <span className="confirm">
+                          {!self && p.onboarding_completed && (
+                            <button className="btn small press" onClick={() => sendNudge(p.id, toast)} title="שולח לו התראה לאשר נוכחות">נדנוד</button>
+                          )}
                           <button className="btn small danger press" disabled={self} title={self ? "מנהל אינו יכול להשבית את עצמו" : ""} onClick={() => { setPending(p.id); setReason(""); }}>השבתה</button>
                           {p.access_role === "admin" ? (
                             !self && <button className="btn small press" onClick={() => run("admin_set_access_role", { p_user_id: p.id, p_role: "member" }, "הרשאת הניהול הוסרה")}>הסרת ניהול</button>

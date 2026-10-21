@@ -10,6 +10,8 @@ import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
 import { InstallSheet, useInstallOffer } from "@/components/Install";
 import { Logo } from "@/components/Logo";
+import { AuditCards, NotifyCard } from "@/components/Notify";
+import { disablePushOnThisDevice } from "@/lib/push";
 import { ChartIcon, CheckIcon, InIcon, LogoutIcon, OutIcon, PinIcon, XIcon } from "@/components/Icons";
 import type { AttendanceAction, AttendanceLog, ReportResult } from "@/lib/types";
 
@@ -52,6 +54,11 @@ export default function HomePage() {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const install = useInstallOffer(!!profile?.onboarding_completed);
+  const [checkParam, setCheckParam] = useState<number | null>(null);
+  useEffect(() => {
+    const v = Number(new URLSearchParams(window.location.search).get("check"));
+    setCheckParam(Number.isFinite(v) && v > 0 ? v : null);
+  }, []);
 
   useEffect(() => {
     if (profile && !profile.onboarding_completed) router.replace("/onboarding");
@@ -118,6 +125,7 @@ export default function HomePage() {
   }
 
   async function doLogout() {
+    await disablePushOnThisDevice();
     await signOut();
     toast("התנתקת מהמכשיר הזה");
     router.replace("/login");
@@ -191,6 +199,8 @@ export default function HomePage() {
         </div>
       </div>
 
+      {profile.is_active && <AuditCards highlightId={checkParam} />}
+
       <div className="actions">
         <button className="big in press" onClick={() => report("check_in")} disabled={!!busy}>
           <InIcon /> {busy === "check_in" ? "מדווח…" : "כניסה"}
@@ -241,6 +251,8 @@ export default function HomePage() {
           </button>
         )}
       </p>
+
+      {profile.is_active && <NotifyCard userId={profile.id} onNeedInstall={() => install.setOpen(true)} />}
 
       <InstallSheet
         open={install.open}

@@ -8,3 +8,6 @@ export const SUPABASE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_oO37zbH2hKohIUI-F9ryzw_-fPdFanm";
 
 export const APP_NAME = "שעון נוכחות";
+
+// מפתח ציבורי להתראות Push (VAPID). המפתח הפרטי שמור רק בשרת.
+export const VAPID_PUBLIC_KEY = "BAl-VlkfXDKnF-wbfYIQBgdy2e0pmCpEznyWLtWxXNCT9Alz3gytcSjBLAdRtXd6gYYQmGVHii1TtnywxY_6ves";
