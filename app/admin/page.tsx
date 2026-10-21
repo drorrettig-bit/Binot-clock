@@ -10,7 +10,7 @@ import { useToast } from "@/components/Toast";
 import { DownloadIcon } from "@/components/Icons";
 import { Logo } from "@/components/Logo";
 import { downloadCsv } from "@/lib/csv";
-import { AlertsTab, sendNudge } from "@/components/admin/AlertsTab";
+import { AlertsTab, NudgeButton } from "@/components/admin/AlertsTab";
 import type { AttendanceAction, DailyRow, MemberType, OrgSettings, Profile, SearchRow } from "@/lib/types";
 
 type Tab = "log" | "hours" | "alerts" | "users" | "settings";
@@ -655,7 +655,7 @@ function UsersTab({ people, me, onChange }: { people: Profile[]; me: Profile; on
                       ) : p.is_active ? (
                         <span className="confirm">
                           {!self && p.onboarding_completed && (
-                            <button className="btn small press" onClick={() => sendNudge(p.id, toast)} title="שולח לו התראה לאשר נוכחות">נדנוד</button>
+                            <NudgeButton userId={p.id} name={p.full_name} />
                           )}
                           <button className="btn small danger press" disabled={self} title={self ? "מנהל אינו יכול להשבית את עצמו" : ""} onClick={() => { setPending(p.id); setReason(""); }}>השבתה</button>
                           {p.access_role === "admin" ? (

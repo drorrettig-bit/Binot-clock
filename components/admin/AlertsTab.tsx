@@ -41,9 +41,9 @@ function summary(r: SendResult): string {
   return `נשלח ל-${r.sent} מכשירים של ${r.users_with_device} מתוך ${r.users} משתמשים` + (r.failed ? ` · ${r.failed} נכשלו` : "");
 }
 
-/** נדנוד למשתמש אחד: ביקורת נוכחות אישית ל-15 דקות */
-export async function sendNudge(userId: string, toast: (m: string) => void) {
-  const { data: id, error } = await supabase().rpc("admin_create_nudge", { p_user_id: userId });
+/** נדנוד למשתמש אחד: ביקורת נוכחות אישית ל-15 דקות, עם מילים אישיות אם נכתבו */
+export async function sendNudge(userId: string, toast: (m: string) => void, words?: string) {
+  const { data: id, error } = await supabase().rpc("admin_create_nudge", { p_user_id: userId, p_body: words?.trim() || null });
   if (error) {
     toast(friendlyError(error));
     return;
@@ -54,6 +54,45 @@ export async function sendNudge(userId: string, toast: (m: string) => void) {
   } catch (e) {
     toast("הנדנוד נשמר, אבל השליחה לטלפון נכשלה: " + friendlyError(e));
   }
+}
+
+/** כפתור נדנוד: לחיצה פותחת שדה קטן להוספת כמה מילים, ואז שליחה */
+export function NudgeButton({ userId, name }: { userId: string; name: string }) {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [words, setWords] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  if (!open)
+    return (
+      <button className="btn small press" onClick={() => setOpen(true)} title="שולח לו התראת ביקורת אישית">
+        נדנוד
+      </button>
+    );
+
+  async function go() {
+    setBusy(true);
+    await sendNudge(userId, toast, words);
+    setBusy(false);
+    setOpen(false);
+    setWords("");
+  }
+
+  return (
+    <span className="confirm nudge">
+      <input
+        id={`nudge-${userId}`}
+        value={words}
+        maxLength={120}
+        autoFocus
+        placeholder={`מילים ל${name.split(" ")[0] || "משתמש"} (לא חובה)`}
+        onChange={(e) => setWords(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") go(); if (e.key === "Escape") setOpen(false); }}
+      />
+      <button className="btn small danger-fill press" onClick={go} disabled={busy}>{busy ? "שולח…" : "🔴 שליחה"}</button>
+      <button className="btn small press" onClick={() => setOpen(false)}>ביטול</button>
+    </span>
+  );
 }
 
 export function AlertsTab({ people }: { people: Profile[] }) {
@@ -257,7 +296,7 @@ function AuditReport({ checkId, check, onClose }: { checkId: number; check?: Che
                   <td className="num">{r.responded_at ? fmtTime(r.responded_at) : "—"}</td>
                   <td className="num">{r.distance_m != null ? `${Math.round(r.distance_m)} מ'` : "—"}</td>
                   <td>{r.has_device ? <span className="muted">פעיל</span> : <span className="pill neutral plain">לא הופעל</span>}</td>
-                  <td>{r.result !== "present" && <button className="btn small press" onClick={() => sendNudge(r.user_id, toast)}>נדנוד</button>}</td>
+                  <td>{r.result !== "present" && <NudgeButton userId={r.user_id} name={r.full_name} />}</td>
                 </tr>
               );
             })}

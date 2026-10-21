@@ -238,6 +238,7 @@ tr.off td { color: var(--muted); }
 td .who { font-weight: 600; }
 .meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; color: var(--muted); font-size: .84rem; flex-wrap: wrap; }
 .confirm { display: flex; gap: 6px; align-items: center; }
+.confirm.nudge input { width: 220px; }
 .confirm input { padding: 4px 8px; border-radius: 7px; width: 170px; border: 1px solid var(--line-strong); background: var(--surface); }
 .panel { padding: 20px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
