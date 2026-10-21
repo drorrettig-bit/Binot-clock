@@ -34,6 +34,7 @@ export interface OrgSettings {
   max_gps_accuracy_m: number;
   min_seconds_between_reports: number;
   timezone: string;
+  notification_retention_days?: number;
 }
 
 export interface AttendanceLog {

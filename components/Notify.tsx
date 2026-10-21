@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { enablePush, pushState, refreshPush, type PushState } from "@/lib/push";
 import { friendlyError } from "@/lib/errors";
 import { fmtTime } from "@/lib/labels";
-import { CheckIcon, PinIcon, XIcon } from "@/components/Icons";
+import { CheckIcon, XIcon } from "@/components/Icons";
 
 /* ---------- כרטיס "הפעלת התראות" ---------- */
 
@@ -67,18 +67,21 @@ export function NotifyCard({ userId, onNeedInstall }: { userId: string; onNeedIn
 /* ---------- ביקורת נוכחות פעילה ---------- */
 
 type Check = { id: number; title: string; body: string | null; expires_at: string };
-type Result = "present" | "away" | "low_accuracy";
+type Result = "present" | "away" | "low_accuracy" | "absent" | "on_the_way";
+type Choice = "present" | "on_the_way" | "absent";
 
-function getPosition(): Promise<GeolocationPosition> {
+function getPosition(timeout = 20000): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) =>
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }),
+    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout, maximumAge: 0 }),
   );
 }
+
+const FINAL: Result[] = ["present", "away"];
 
 export function AuditCards({ highlightId }: { highlightId: number | null }) {
   const [checks, setChecks] = useState<Check[]>([]);
   const [answered, setAnswered] = useState<Record<number, Result>>({});
-  const [busy, setBusy] = useState<number | null>(null);
+  const [busy, setBusy] = useState<{ id: number; choice: Choice } | null>(null);
   const [msg, setMsg] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
@@ -110,57 +113,81 @@ export function AuditCards({ highlightId }: { highlightId: number | null }) {
     };
   }, [load]);
 
-  async function respond(id: number) {
-    setBusy(id);
+  async function respond(id: number, choice: Choice) {
+    setBusy({ id, choice });
     setMsg((m) => ({ ...m, [id]: "" }));
-    try {
-      const pos = await getPosition();
-      const { data, error } = await supabase().rpc("respond_spot_check", {
-        p_check_id: id, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude, p_accuracy_m: Math.round(pos.coords.accuracy),
-      });
-      if (error) {
-        const expired = (error as { code?: string }).code === "PT410" || error.message.includes("expired");
-        setMsg((m) => ({ ...m, [id]: expired ? "זמן הביקורת הסתיים." : friendlyError(error) }));
-      } else {
-        setAnswered((a) => ({ ...a, [id]: (data as { result: Result }).result }));
+    let pos: GeolocationPosition | null = null;
+    if (choice !== "absent") {
+      try {
+        pos = await getPosition(choice === "present" ? 20000 : 8000);
+      } catch (e) {
+        if (choice === "present") {
+          const code = (e as GeolocationPositionError)?.code;
+          setMsg((m) => ({
+            ...m,
+            [id]: code === 1 ? "לא ניתנה הרשאת מיקום. צריך לאפשר מיקום בהגדרות הטלפון ולנסות שוב." : "לא הצלחנו לקבל מיקום. נסו שוב, רצוי ליד חלון.",
+          }));
+          setBusy(null);
+          return;
+        }
+        // "בדרך": אם אין מיקום, שולחים בלעדיו
       }
-    } catch (e) {
-      const code = (e as GeolocationPositionError)?.code;
-      setMsg((m) => ({
-        ...m,
-        [id]: code === 1 ? "לא ניתנה הרשאת מיקום. צריך לאפשר מיקום בהגדרות הטלפון ולנסות שוב." : "לא הצלחנו לקבל מיקום. נסו שוב, רצוי ליד חלון.",
-      }));
+    }
+    const { data, error } = await supabase().rpc("respond_spot_check_choice", {
+      p_check_id: id,
+      p_choice: choice,
+      p_lat: pos?.coords.latitude ?? null,
+      p_lng: pos?.coords.longitude ?? null,
+      p_accuracy_m: pos ? Math.round(pos.coords.accuracy) : null,
+    });
+    if (error) {
+      const expired = (error as { code?: string }).code === "PT410" || error.message.includes("expired");
+      setMsg((m) => ({ ...m, [id]: expired ? "זמן הביקורת הסתיים." : friendlyError(error) }));
+    } else {
+      setAnswered((a) => ({ ...a, [id]: (data as { result: Result }).result }));
     }
     setBusy(null);
   }
 
-  const open = checks.filter((c) => answered[c.id] !== "present" && answered[c.id] !== "away");
-  const done = checks.filter((c) => answered[c.id] === "present" || answered[c.id] === "away");
   if (!checks.length) return null;
+  const open = checks.filter((c) => !FINAL.includes(answered[c.id]));
+  const done = checks.filter((c) => FINAL.includes(answered[c.id]));
+  const label = (b: Choice, text: string, wait: string) => (busy?.choice === b ? wait : text);
 
   return (
     <>
-      {open.map((c) => (
-        <div key={c.id} className={`audit enter${highlightId === c.id ? " hl" : ""}`} role="alert">
-          <div className="audit-head">
-            <span className="audit-badge">ביקורת נוכחות</span>
-            <span className="muted">עד <span className="num">{fmtTime(c.expires_at)}</span></span>
+      {open.map((c) => {
+        const a = answered[c.id];
+        const isBusy = busy?.id === c.id;
+        return (
+          <div key={c.id} className={`audit enter${highlightId === c.id ? " hl" : ""}`} role="alert">
+            <div className="audit-head">
+              <span className="audit-badge">🔴 {c.title}</span>
+              <span className="muted">עד <span className="num">{fmtTime(c.expires_at)}</span></span>
+            </div>
+            {c.body && <p>{c.body}</p>}
+            {a === "on_the_way" && <p className="help">סימנת <b>בדרך</b>. כשתגיע, לחץ &quot;הגעתי&quot;.</p>}
+            {a === "absent" && <p className="help">סימנת <b>לא נוכח</b>. אם הגעת בכל זאת, לחץ &quot;הגעתי&quot;.</p>}
+            {a === "low_accuracy" && <p className="help bad">אות ה-GPS היה חלש. נסו שוב, רצוי ליד חלון.</p>}
+            {msg[c.id] && <p className="help bad">{msg[c.id]}</p>}
+            <button className="primary-btn press" onClick={() => respond(c.id, "present")} disabled={isBusy}>
+              {isBusy ? label("present", "נוכח", "מאתר מיקום…") : a === "on_the_way" || a === "absent" ? "הגעתי, אישור נוכחות" : "נוכח"}
+            </button>
+            {a !== "on_the_way" && a !== "absent" && (
+              <div className="audit-alt">
+                <button className="btn press" onClick={() => respond(c.id, "on_the_way")} disabled={isBusy}>{isBusy ? label("on_the_way", "בדרך", "שולח…") : "בדרך"}</button>
+                <button className="btn press" onClick={() => respond(c.id, "absent")} disabled={isBusy}>{isBusy ? label("absent", "לא נוכח", "שולח…") : "לא נוכח"}</button>
+              </div>
+            )}
           </div>
-          <h3>{c.title}</h3>
-          {c.body && <p>{c.body}</p>}
-          {answered[c.id] === "low_accuracy" && <p className="help bad">אות ה-GPS היה חלש. נסו שוב, רצוי ליד חלון.</p>}
-          {msg[c.id] && <p className="help bad">{msg[c.id]}</p>}
-          <button className="primary-btn press" onClick={() => respond(c.id)} disabled={busy === c.id}>
-            {busy === c.id ? "מאתר מיקום…" : "אישור נוכחות"}
-          </button>
-        </div>
-      ))}
+        );
+      })}
       {done.map((c) => (
         <div key={c.id} className={`result enter ${answered[c.id] === "present" ? "ok" : "bad"}`}>
-          <span className="ic">{answered[c.id] === "present" ? <CheckIcon /> : answered[c.id] === "away" ? <XIcon /> : <PinIcon />}</span>
+          <span className="ic">{answered[c.id] === "present" ? <CheckIcon /> : <XIcon />}</span>
           <div>
             <h3>{answered[c.id] === "present" ? "נוכחותך בביקורת אושרה" : "התגובה נרשמה: מחוץ לתחום הישיבה"}</h3>
-            <p>{c.title}</p>
+            <p>🔴 {c.title} · <span className="num">{fmtTime(c.expires_at)}</span></p>
           </div>
         </div>
       ))}

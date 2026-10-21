@@ -17,12 +17,14 @@ type CheckRow = {
 };
 type ReportRow = {
   user_id: string; full_name: string; national_id: string | null; member_type: MemberType | null;
-  has_device: boolean; responded_at: string | null; result: "present" | "away" | "low_accuracy" | null; distance_m: number | null;
+  has_device: boolean; responded_at: string | null; result: "present" | "away" | "low_accuracy" | "absent" | "on_the_way" | null; distance_m: number | null;
 };
 
 const RESULT_LABEL: Record<string, { text: string; tone: string }> = {
-  present: { text: "בישיבה", tone: "ok" },
-  away: { text: "מחוץ לישיבה", tone: "bad" },
+  present: { text: "נוכח (אומת במיקום)", tone: "ok" },
+  on_the_way: { text: "בדרך", tone: "warn" },
+  absent: { text: "לא נוכח", tone: "bad" },
+  away: { text: "טען נוכח, מחוץ לישיבה", tone: "bad" },
   low_accuracy: { text: "אות GPS חלש", tone: "warn" },
   none: { text: "לא הגיב", tone: "neutral" },
 };
@@ -150,7 +152,7 @@ export function AlertsTab({ people }: { people: Profile[] }) {
         </div>
         <p className="help" style={{ margin: 0 }}>
           {kind === "audit"
-            ? "התראה אדומה: \"🔴 ביקורת\". היא נשארת על המסך עד שלוחצים עליה, ובאנדרואיד מגיעה עם רטט חזק. מי שלוחץ מאשר נוכחות עם מיקום, ואתה רואה בדוח מי בישיבה, מי מחוץ לה ומי לא הגיב."
+            ? "התראה אדומה: \"🔴 ביקורת\". היא נשארת על המסך עד שלוחצים עליה, ובאנדרואיד מגיעה עם רטט חזק. מי שלוחץ בוחר נוכח (נבדק מיקום), בדרך או לא נוכח, ואתה רואה בדוח את כולם ומי לא הגיב."
             : "הודעה רגילה עם הכותרת והטקסט שכתבת, בלי צורך באישור."}{" "}
           נדנוד לאדם מסוים שולחים מלשונית המשתמשים, או מתוך דוח ביקורת.
         </p>
@@ -230,9 +232,11 @@ function AuditReport({ checkId, check, onClose }: { checkId: number; check?: Che
         </span>
       </div>
       <div className="chips">
-        <span className="pill ok">בישיבה {count("present")}</span>
-        <span className="pill bad">מחוץ לישיבה {count("away")}</span>
-        <span className="pill warn">אות חלש {count("low_accuracy")}</span>
+        <span className="pill ok">נוכחים {count("present")}</span>
+        <span className="pill warn">בדרך {count("on_the_way")}</span>
+        <span className="pill bad">לא נוכחים {count("absent")}</span>
+        <span className="pill bad">טענו נוכח ונמצאו בחוץ {count("away")}</span>
+        {count("low_accuracy") > 0 && <span className="pill warn">אות חלש {count("low_accuracy")}</span>}
         <span className="pill neutral">לא הגיבו {count("none")}</span>
         <span className="muted" style={{ fontSize: ".84rem", alignSelf: "center" }}>
           {open ? `פתוחה עד ${fmtTime(check!.expires_at!)} · מתעדכן לבד` : "הביקורת נסגרה"}

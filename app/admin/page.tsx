@@ -691,7 +691,9 @@ function SettingsTab({ org, onSaved }: { org: OrgSettings; onSaved: () => void }
     allowed_radius_m: String(org.allowed_radius_m),
     max_gps_accuracy_m: String(org.max_gps_accuracy_m),
     min_seconds_between_reports: String(org.min_seconds_between_reports),
+    notification_retention_days: String(org.notification_retention_days ?? 30),
   });
+  const hasRetention = org.notification_retention_days !== undefined;
   const [admins, setAdmins] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -704,14 +706,15 @@ function SettingsTab({ org, onSaved }: { org: OrgSettings; onSaved: () => void }
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const lat = Number(f.latitude), lng = Number(f.longitude), rad = Number(f.allowed_radius_m), acc = Number(f.max_gps_accuracy_m), gap = Number(f.min_seconds_between_reports);
-    if (!f.name.trim() || !(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180) || !(rad >= 20 && rad <= 2000) || !(acc >= 5 && acc <= 1000) || !(gap >= 0 && gap <= 3600)) {
-      toast("יש ערך לא תקין. רדיוס 20 עד 2000 מ', דיוק 5 עד 1000 מ'.");
+    const keep = Number(f.notification_retention_days);
+    if (!f.name.trim() || !(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180) || !(rad >= 20 && rad <= 2000) || !(acc >= 5 && acc <= 1000) || !(gap >= 0 && gap <= 3600) || (hasRetention && !(keep >= 1 && keep <= 365))) {
+      toast("יש ערך לא תקין. רדיוס 20 עד 2000 מ', דיוק 5 עד 1000 מ', שמירת התראות 1 עד 365 ימים.");
       return;
     }
     setBusy(true);
     const { error } = await supabase()
       .from("organization_settings")
-      .update({ name: f.name.trim(), latitude: lat, longitude: lng, allowed_radius_m: rad, max_gps_accuracy_m: acc, min_seconds_between_reports: gap })
+      .update({ name: f.name.trim(), latitude: lat, longitude: lng, allowed_radius_m: rad, max_gps_accuracy_m: acc, min_seconds_between_reports: gap, ...(hasRetention ? { notification_retention_days: keep } : {}) })
       .eq("id", 1);
     setBusy(false);
     if (error) {
@@ -731,6 +734,9 @@ function SettingsTab({ org, onSaved }: { org: OrgSettings; onSaved: () => void }
         <label className="field">רדיוס מותר (מטר)<input id="srad" className="ltr num" inputMode="numeric" value={f.allowed_radius_m} onChange={set("allowed_radius_m")} /></label>
         <label className="field">דיוק GPS מקסימלי (מטר)<input id="sacc" className="ltr num" inputMode="numeric" value={f.max_gps_accuracy_m} onChange={set("max_gps_accuracy_m")} /></label>
         <label className="field">המתנה בין דיווחים (שניות)<input id="sgap" className="ltr num" inputMode="numeric" value={f.min_seconds_between_reports} onChange={set("min_seconds_between_reports")} /></label>
+        {hasRetention && (
+          <label className="field">מחיקת היסטוריית התראות אחרי (ימים)<input id="skeep" className="ltr num" inputMode="numeric" value={f.notification_retention_days} onChange={set("notification_retention_days")} /></label>
+        )}
       </div>
       <p className="help">
         לבדיקת הנקודה:{" "}
