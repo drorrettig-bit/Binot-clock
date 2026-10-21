@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
@@ -16,6 +16,10 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("link") === "expired")
+      setError("הקישור מהמייל כבר לא תקף. בקשו קוד חדש.");
+  }, []);
   const [info, setInfo] = useState("");
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -28,7 +32,11 @@ export default function LoginPage() {
     }
     setBusy(true);
     setError("");
-    const { error } = await supabase().auth.signInWithOtp({ email: clean, options: { shouldCreateUser: true } });
+    const { error } = await supabase().auth.signInWithOtp({
+      email: clean,
+      // אם המשתמש לוחץ על הקישור במייל במקום להקליד את הקוד, הוא חוזר לאתר הזה
+      options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
     setBusy(false);
     if (error) {
       setError(friendlyError(error));
@@ -108,7 +116,7 @@ export default function LoginPage() {
           </button>
           <h1 className="title">בדקו את המייל</h1>
           <p className="lead">
-            שלחנו קוד בן 6 ספרות אל <b className="ltr">{email}</b>. אם הוא לא מופיע, כדאי לבדוק גם בתיקיית הספאם.
+            שלחנו מייל אל <b className="ltr">{email}</b>. אפשר להקליד כאן את הקוד מהמייל, או ללחוץ על הקישור שבו. אם המייל לא מופיע, כדאי לבדוק בתיקיית הספאם.
           </p>
           <label className="field" htmlFor="otp">
             קוד כניסה
