@@ -14,7 +14,7 @@ import type { AttendanceAction, AttendanceLog, ReportResult } from "@/lib/types"
 type Result = { tone: "ok" | "bad" | "info"; title: string; text: string };
 
 const REJECT_TEXT: Record<string, (r: ReportResult) => string> = {
-  rejected_distance: (r) => `המיקום שלך נמדד ${Math.round(r.distance_m)} מ' מהישיבה. מותר עד ${r.allowed_radius_m} מ'.`,
+  rejected_distance: () => "נראה שאתה לא בתחום הישיבה. דווח כשאתה בפנים.",
   rejected_accuracy: () => "אות ה-GPS חלש מדי כדי לדעת איפה אתה. צא לאזור פתוח או התקרב לחלון ונסה שוב.",
   rejected_sequence: (r) =>
     r.action === "check_in" ? "כבר רשומה לך כניסה פתוחה היום. כשתצא, דווח יציאה." : "אין כניסה פתוחה היום. קודם מדווחים כניסה.",
@@ -43,7 +43,8 @@ function geoErrorText(err: unknown): string {
 export default function HomePage() {
   const router = useRouter();
   const toast = useToast();
-  const { profile, org, loading } = useMe();
+  const { profile, loading } = useMe();
+  const [orgName, setOrgName] = useState("");
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [busy, setBusy] = useState<AttendanceAction | null>(null);
   const [result, setResult] = useState<Result | null>(null);
@@ -59,7 +60,7 @@ export default function HomePage() {
     if (!profile) return;
     const { data } = await supabase()
       .from("attendance_logs")
-      .select("id,user_id,action,status,source,recorded_at,distance_m,gps_accuracy_m,note")
+      .select("id,user_id,action,status,source,recorded_at,note")
       .eq("user_id", profile.id)
       .gte("recorded_at", startOfIsraelDay())
       .order("recorded_at", { ascending: true });
@@ -69,6 +70,10 @@ export default function HomePage() {
   useEffect(() => {
     loadToday();
   }, [loadToday]);
+
+  useEffect(() => {
+    supabase().rpc("org_display_name").then(({ data }) => setOrgName(typeof data === "string" ? data : ""));
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
@@ -116,7 +121,8 @@ export default function HomePage() {
       setResult({
         tone: "ok",
         title: action === "check_in" ? "הכניסה נרשמה" : "היציאה נרשמה",
-        text: `בשעה ${fmtTime(r.recorded_at)}, במרחק ${Math.round(r.distance_m)} מ' מהישיבה.`,
+        // מנהל רואה גם את המרחק, לבדיקה. משתמש רגיל לא מקבל אותו מהשרת בכלל.
+        text: `בשעה ${fmtTime(r.recorded_at)}.` + (r.distance_m != null ? ` מרחק: ${Math.round(r.distance_m)} מ' (מוצג למנהלים בלבד).` : ""),
       });
       if ("vibrate" in navigator) navigator.vibrate?.(30);
     } else {
@@ -256,7 +262,7 @@ export default function HomePage() {
         <span>
           {profile.member_type ? ROLE_LABEL[profile.member_type] + " · " : ""}
           מחובר כ-<span className="ltr">{profile.email}</span>
-          {org ? ` · ${org.name}` : ""}
+          {orgName ? ` · ${orgName}` : ""}
         </span>
       </p>
     </main>

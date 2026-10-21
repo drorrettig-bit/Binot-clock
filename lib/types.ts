@@ -42,8 +42,6 @@ export interface AttendanceLog {
   status: AttendanceStatus;
   source: "gps" | "admin_manual";
   recorded_at: string;
-  distance_m: number | null;
-  gps_accuracy_m: number | null;
   note: string | null;
 }
 
@@ -82,6 +80,8 @@ export interface ReportResult {
   status: AttendanceStatus;
   action: AttendanceAction;
   recorded_at: string;
-  distance_m: number;
-  allowed_radius_m: number;
+  /** רק למנהלים */
+  distance_m?: number;
+  /** רק למנהלים */
+  allowed_radius_m?: number;
 }
