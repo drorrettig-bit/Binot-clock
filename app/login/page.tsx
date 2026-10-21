@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
 import { BackIcon } from "@/components/Icons";
+import { Logo } from "@/components/Logo";
 import { APP_NAME } from "@/lib/config";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -77,12 +78,9 @@ export default function LoginPage() {
       {step === "email" ? (
         <form className="section enter" style={{ gap: 18 }} onSubmit={sendCode} noValidate>
           <div className="auth-hero">
-            <div className="auth-logo">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="ישיבת ההסדר בינות רעננה" width={168} height={168} />
-            </div>
+            <Logo height={150} className="auth-logo" />
             <h1>{APP_NAME}</h1>
-            <p>כניסה והרשמה · ישיבת ההסדר בינות רעננה</p>
+            <p>כניסה והרשמה</p>
           </div>
           <label className="field" htmlFor="email">
             כתובת אימייל

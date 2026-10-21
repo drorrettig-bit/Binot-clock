@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/Toast";
+import { PwaSetup } from "@/components/Install";
 import { APP_NAME } from "@/lib/config";
 import "./globals.css";
 
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <PwaSetup />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

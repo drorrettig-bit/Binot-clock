@@ -8,6 +8,7 @@ import { ACTION_LABEL, ROLE_LABEL, STATUS_LABEL, dayKey, fmtDate, fmtTime, minut
 import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
 import { DownloadIcon } from "@/components/Icons";
+import { Logo } from "@/components/Logo";
 import type { AttendanceAction, DailyRow, MemberType, OrgSettings, Profile, SearchRow } from "@/lib/types";
 
 type Tab = "log" | "hours" | "users" | "settings";
@@ -99,10 +100,8 @@ export default function AdminPage() {
       <header className="head">
         <div className="wrap top">
           <div className="brand">
-            <span className="logo-tile">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="" width={40} height={40} />
-            </span>
+            <Logo height={46} />
+            <span className="sep" aria-hidden="true" />
             <div>
               <h1>ניהול נוכחות</h1>
               <p>{org?.name ?? ""} · רדיוס <span className="num">{org?.allowed_radius_m ?? "—"}</span> מ&apos;</p>

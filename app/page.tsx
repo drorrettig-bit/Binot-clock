@@ -8,6 +8,8 @@ import { signOut, useMe } from "@/lib/useMe";
 import { ACTION_LABEL, ROLE_LABEL, STATUS_LABEL, fmtTime, minutesLabel, startOfIsraelDay } from "@/lib/labels";
 import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
+import { InstallSheet, useInstallOffer } from "@/components/Install";
+import { Logo } from "@/components/Logo";
 import { ChartIcon, CheckIcon, InIcon, LogoutIcon, OutIcon, PinIcon, XIcon } from "@/components/Icons";
 import type { AttendanceAction, AttendanceLog, ReportResult } from "@/lib/types";
 
@@ -44,13 +46,12 @@ export default function HomePage() {
   const router = useRouter();
   const toast = useToast();
   const { profile, loading } = useMe();
-  const [orgName, setOrgName] = useState("");
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [busy, setBusy] = useState<AttendanceAction | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [showInstall, setShowInstall] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const install = useInstallOffer(!!profile?.onboarding_completed);
 
   useEffect(() => {
     if (profile && !profile.onboarding_completed) router.replace("/onboarding");
@@ -71,27 +72,12 @@ export default function HomePage() {
     loadToday();
   }, [loadToday]);
 
-  useEffect(() => {
-    supabase().rpc("org_display_name").then(({ data }) => setOrgName(typeof data === "string" ? data : ""));
-  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    // הצעה להתקין במסך הבית: ב-iPhone זה מה ששומר על החיבור לאורך זמן
-    try {
-      const standalone =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        (navigator as Navigator & { standalone?: boolean }).standalone === true;
-      const dismissed = localStorage.getItem("install-hint-dismissed") === "1";
-      setShowInstall(!standalone && !dismissed);
-    } catch {
-      setShowInstall(false);
-    }
-  }, []);
 
   async function report(action: AttendanceAction) {
     setBusy(action);
@@ -158,11 +144,7 @@ export default function HomePage() {
   return (
     <main className="app">
       <div className="brandbar">
-        <span className="logo-tile">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" width={34} height={34} />
-        </span>
-        <span>{orgName || "שעון נוכחות"}</span>
+        <Logo height={52} />
       </div>
       <div className="userbar enter">
         <div className="avatar" aria-hidden="true">{(profile.first_name ?? "?").charAt(0)}</div>
@@ -187,23 +169,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {showInstall && (
-        <div className="install">
-          <div>
-            <b>כדאי להוסיף למסך הבית</b>
-            ב-iPhone: כפתור השיתוף ואז &quot;הוסף למסך הבית&quot;. באנדרואיד: תפריט הדפדפן ואז &quot;התקן אפליקציה&quot;. כך תישאר מחובר תמיד.
-          </div>
-          <button
-            aria-label="סגירה"
-            onClick={() => {
-              setShowInstall(false);
-              try { localStorage.setItem("install-hint-dismissed", "1"); } catch {}
-            }}
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       <div className="status-card">
         <div className="ring" aria-hidden="true">
@@ -270,7 +235,21 @@ export default function HomePage() {
           {profile.member_type ? ROLE_LABEL[profile.member_type] + " · " : ""}
           מחובר כ-<span className="ltr">{profile.email}</span>
         </span>
+        {!install.installed && (
+          <button className="linkish" style={{ alignSelf: "center", fontSize: ".82rem" }} onClick={() => install.setOpen(true)}>
+            הוספה למסך הבית
+          </button>
+        )}
       </p>
+
+      <InstallSheet
+        open={install.open}
+        onClose={() => install.setOpen(false)}
+        onInstalled={() => {
+          install.markInstalled();
+          toast("נוסף למסך הבית");
+        }}
+      />
     </main>
   );
 }
