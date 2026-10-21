@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "דיווח נוכחות לפי מיקום עבור הישיבה",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
-  icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
+  icons: { icon: "/favicon.png", apple: "/icons/apple-touch-icon.png" },
   formatDetection: { telephone: false },
 };
 
@@ -17,8 +17,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#edf1ef" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1316" },
+    { media: "(prefers-color-scheme: light)", color: "#f1f4f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0c16" },
   ],
 };
 

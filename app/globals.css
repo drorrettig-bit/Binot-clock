@@ -1,9 +1,11 @@
 /* Tokens: deep teal ink + brass, cool neutrals. Light is default; dark follows the OS. */
 :root {
-  --bg: #edf1ef; --surface: #ffffff; --surface-2: #f4f7f6; --ink: #14222a; --muted: #5a6a70;
-  --line: #dce3e1; --line-strong: #c3cecb;
-  --accent: #0c6a64; --accent-ink: #ffffff; --accent-soft: #dfefec; --brass: #9e772a; --brass-soft: #f6eedc;
-  --header: #12212a; --header-ink: #eef3f1; --header-muted: #93a7ab; --header-line: #24363e;
+  /* צבעי הלוגו: כחול #1aa8e0, סגול #5e2d86, ירוק #88c040. הכחול הועמק לכפתורים כדי שטקסט לבן ייקרא היטב */
+  --bg: #f1f4f8; --surface: #ffffff; --surface-2: #f5f7fa; --ink: #1d1530; --muted: #5d6175;
+  --line: #dfe3ea; --line-strong: #c6ccd8;
+  --accent: #0a78ab; --accent-ink: #ffffff; --accent-soft: #e2f2fa; --brass: #5e2d86; --brass-soft: #f1eaf7;
+  --brand-blue: #1aa8e0; --brand-purple: #5e2d86; --brand-green: #6fa52f;
+  --header: #3b1a5a; --header-ink: #f6f2fa; --header-muted: #c2b3d4; --header-line: #52307a;
   --ok: #1b7241; --ok-bg: #e1f2e6; --warn: #8c5900; --warn-bg: #fbeed3; --bad: #ab2a20; --bad-bg: #fbe4e1;
   --shadow: 0 1px 2px rgba(20,34,42,.05), 0 10px 30px -12px rgba(20,34,42,.14);
   --ease-out: cubic-bezier(.23,1,.32,1);
@@ -15,10 +17,11 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1316; --surface: #121e23; --surface-2: #17262c; --ink: #e2eae8; --muted: #93a6a9;
-    --line: #22343a; --line-strong: #31464d;
-    --accent: #46b9ae; --accent-ink: #03201c; --accent-soft: #11322e; --brass: #d7b062; --brass-soft: #2d2511;
-    --header: #081013; --header-ink: #e2eae8; --header-muted: #7d9195; --header-line: #1c2c32;
+    --bg: #0e0c16; --surface: #17141f; --surface-2: #1e1a29; --ink: #ece8f3; --muted: #a39db3;
+    --line: #2b2638; --line-strong: #3b3549;
+    --accent: #3fb7ec; --accent-ink: #04202e; --accent-soft: #10293a; --brass: #b892dc; --brass-soft: #261b33;
+    --brand-blue: #3fb7ec; --brand-purple: #b892dc; --brand-green: #9bd15a;
+    --header: #1b0f29; --header-ink: #ece8f3; --header-muted: #9b8cb0; --header-line: #2e2042;
     --ok: #74d49e; --ok-bg: #133127; --warn: #eab75e; --warn-bg: #352a11; --bad: #ff9087; --bad-bg: #3a1b19;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px -12px rgba(0,0,0,.5);
     color-scheme: dark;
@@ -65,9 +68,13 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* auth */
 .auth-hero { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-block: 32px 8px; }
-.auth-logo { width: 68px; height: 68px; border-radius: 20px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; margin-bottom: 10px; box-shadow: 0 14px 26px -14px var(--accent); }
-.auth-logo svg { width: 36px; height: 36px; }
-.auth-hero h1 { font-family: var(--font-display), serif; font-size: 2rem; font-weight: 900; margin: 0; line-height: 1.1; }
+.auth-logo { width: 168px; height: 168px; border-radius: 28px; background: #ffffff; display: grid; place-items: center; margin-bottom: 14px; box-shadow: 0 0 0 1px var(--line), var(--shadow); overflow: hidden; }
+.auth-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.logo-tile { width: 40px; height: 40px; border-radius: 10px; background: #ffffff; overflow: hidden; flex: none; display: grid; place-items: center; }
+.logo-tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brandbar { display: flex; align-items: center; gap: 10px; color: var(--brand-purple); font-weight: 700; font-size: .9rem; }
+.brandbar .logo-tile { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 0 1px var(--line); }
+.auth-hero h1 { font-family: var(--font-display), serif; font-size: 2rem; font-weight: 900; margin: 0; line-height: 1.1; color: var(--brand-purple); }
 .auth-hero p { margin: 0; color: var(--muted); }
 .title { font-family: var(--font-display), serif; font-size: 1.7rem; font-weight: 700; margin: 8px 0 0; line-height: 1.15; }
 .lead { margin: 0; color: var(--muted); }
@@ -131,7 +138,7 @@ h1, h2, h3 { text-wrap: balance; }
 .today li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .92rem; padding: 10px 12px; }
 .today li + li { border-top: 1px solid var(--line); }
 .foot { display: flex; align-items: center; gap: 8px; justify-content: center; color: var(--muted); font-size: .8rem; margin-top: auto; text-align: center; flex-wrap: wrap; }
-.foot i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.foot i { width: 7px; height: 7px; border-radius: 50%; background: var(--brand-green); flex: none; }
 .install { border: 1px dashed var(--brass); background: var(--brass-soft); border-radius: 14px; padding: 12px 14px; font-size: .88rem; display: flex; gap: 10px; align-items: flex-start; }
 .install b { display: block; }
 .install button { margin-inline-start: auto; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 2px; }

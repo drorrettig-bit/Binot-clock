@@ -157,6 +157,13 @@ export default function HomePage() {
 
   return (
     <main className="app">
+      <div className="brandbar">
+        <span className="logo-tile">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" width={34} height={34} />
+        </span>
+        <span>{orgName || "שעון נוכחות"}</span>
+      </div>
       <div className="userbar enter">
         <div className="avatar" aria-hidden="true">{(profile.first_name ?? "?").charAt(0)}</div>
         <div className="who">
@@ -262,7 +269,6 @@ export default function HomePage() {
         <span>
           {profile.member_type ? ROLE_LABEL[profile.member_type] + " · " : ""}
           מחובר כ-<span className="ltr">{profile.email}</span>
-          {orgName ? ` · ${orgName}` : ""}
         </span>
       </p>
     </main>

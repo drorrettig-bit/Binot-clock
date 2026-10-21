@@ -7,7 +7,7 @@ import { useMe } from "@/lib/useMe";
 import { ACTION_LABEL, ROLE_LABEL, STATUS_LABEL, dayKey, fmtDate, fmtTime, minutesLabel, startOfIsraelDay } from "@/lib/labels";
 import { friendlyError } from "@/lib/errors";
 import { useToast } from "@/components/Toast";
-import { DownloadIcon, LogoIcon } from "@/components/Icons";
+import { DownloadIcon } from "@/components/Icons";
 import type { AttendanceAction, DailyRow, MemberType, OrgSettings, Profile, SearchRow } from "@/lib/types";
 
 type Tab = "log" | "hours" | "users" | "settings";
@@ -99,7 +99,10 @@ export default function AdminPage() {
       <header className="head">
         <div className="wrap top">
           <div className="brand">
-            <LogoIcon width={28} height={28} />
+            <span className="logo-tile">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="" width={40} height={40} />
+            </span>
             <div>
               <h1>ניהול נוכחות</h1>
               <p>{org?.name ?? ""} · רדיוס <span className="num">{org?.allowed_radius_m ?? "—"}</span> מ&apos;</p>
