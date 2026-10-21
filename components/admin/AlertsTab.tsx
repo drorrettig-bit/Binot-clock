@@ -41,7 +41,7 @@ function summary(r: SendResult): string {
   return `נשלח ל-${r.sent} מכשירים של ${r.users_with_device} מתוך ${r.users} משתמשים` + (r.failed ? ` · ${r.failed} נכשלו` : "");
 }
 
-/** נדנוד למשתמש אחד: ביקורת נוכחות אישית ל-15 דקות, עם מילים אישיות אם נכתבו */
+/** נדנוד: הודעה רגילה לאדם אחד, עם מילים אישיות אם נכתבו. לא ביקורת. */
 export async function sendNudge(userId: string, toast: (m: string) => void, words?: string) {
   const { data: id, error } = await supabase().rpc("admin_create_nudge", { p_user_id: userId, p_body: words?.trim() || null });
   if (error) {
@@ -50,13 +50,13 @@ export async function sendNudge(userId: string, toast: (m: string) => void, word
   }
   try {
     const r = await invokeSend(id as number);
-    toast(r.devices ? "הנדנוד נשלח לטלפון" : "הנדנוד נשמר, אבל למשתמש אין מכשיר שהפעיל התראות. הוא יראה אותו כשיפתח את האפליקציה.");
+    toast(r.devices ? "הנדנוד נשלח לטלפון" : "למשתמש אין מכשיר שהפעיל התראות, ולכן הנדנוד לא הגיע אליו.");
   } catch (e) {
     toast("הנדנוד נשמר, אבל השליחה לטלפון נכשלה: " + friendlyError(e));
   }
 }
 
-/** כפתור נדנוד: לחיצה פותחת שדה קטן להוספת כמה מילים, ואז שליחה */
+/** כפתור נדנוד: לחיצה פותחת שדה קטן להוספת כמה מילים, ואז שליחה כהודעה רגילה */
 export function NudgeButton({ userId, name }: { userId: string; name: string }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -65,7 +65,7 @@ export function NudgeButton({ userId, name }: { userId: string; name: string }) 
 
   if (!open)
     return (
-      <button className="btn small press" onClick={() => setOpen(true)} title="שולח לו התראת ביקורת אישית">
+      <button className="btn small press" onClick={() => setOpen(true)} title="שולח לו הודעה קצרה לטלפון">
         נדנוד
       </button>
     );
@@ -85,11 +85,11 @@ export function NudgeButton({ userId, name }: { userId: string; name: string }) 
         value={words}
         maxLength={120}
         autoFocus
-        placeholder={`מילים ל${name.split(" ")[0] || "משתמש"} (לא חובה)`}
+        placeholder={`הודעה ל${name.split(" ")[0] || "משתמש"} (לא חובה)`}
         onChange={(e) => setWords(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") go(); if (e.key === "Escape") setOpen(false); }}
       />
-      <button className="btn small danger-fill press" onClick={go} disabled={busy}>{busy ? "שולח…" : "🔴 שליחה"}</button>
+      <button className="btn small primary press" onClick={go} disabled={busy}>{busy ? "שולח…" : "שליחה"}</button>
       <button className="btn small press" onClick={() => setOpen(false)}>ביטול</button>
     </span>
   );
@@ -155,7 +155,7 @@ export function AlertsTab({ people }: { people: Profile[] }) {
 
   const active = people.filter((p) => p.is_active).length;
   const target = (c: CheckRow) =>
-    c.target_user ? `נדנוד: ${names[c.target_user] ?? "משתמש"}` : c.target_role ? ROLE_LABEL[c.target_role] : "כולם";
+    c.target_user ? `${names[c.target_user] ?? "משתמש"} (נדנוד)` : c.target_role ? ROLE_LABEL[c.target_role] : "כולם";
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -193,7 +193,7 @@ export function AlertsTab({ people }: { people: Profile[] }) {
           {kind === "audit"
             ? "התראה אדומה: \"🔴 ביקורת\". היא נשארת על המסך עד שלוחצים עליה, ובאנדרואיד מגיעה עם רטט חזק. מי שלוחץ בוחר נוכח (נבדק מיקום), בדרך או לא נוכח, ואתה רואה בדוח את כולם ומי לא הגיב."
             : "הודעה רגילה עם הכותרת והטקסט שכתבת, בלי צורך באישור."}{" "}
-          נדנוד לאדם מסוים שולחים מלשונית המשתמשים, או מתוך דוח ביקורת.
+          נדנוד, כלומר הודעה קצרה לאדם אחד, שולחים מלשונית המשתמשים או מתוך דוח ביקורת.
         </p>
         <div><button className={`btn press ${kind === "audit" ? "danger-fill" : "primary"}`} type="submit" disabled={busy}>{busy ? "שולח…" : kind === "audit" ? "🔴 שליחת התראת ביקורת" : "שליחת הודעה"}</button></div>
       </form>
@@ -208,7 +208,7 @@ export function AlertsTab({ people }: { people: Profile[] }) {
               {history.map((c) => (
                 <tr key={c.id}>
                   <td className="num">{fmtDate(c.created_at)} {fmtTime(c.created_at)}</td>
-                  <td>{c.kind === "audit" ? <span className="pill warn plain">ביקורת</span> : <span className="pill neutral plain">הודעה</span>}</td>
+                  <td>{c.kind === "audit" ? <span className="pill bad plain">🔴 ביקורת</span> : c.target_user ? <span className="pill neutral plain">נדנוד</span> : <span className="pill neutral plain">הודעה</span>}</td>
                   <td><span className="who">{c.title}</span></td>
                   <td>{target(c)}</td>
                   <td className="num">{c.sent_count ?? "—"}{c.failed_count ? <span className="muted"> ({c.failed_count} נכשלו)</span> : ""}</td>
