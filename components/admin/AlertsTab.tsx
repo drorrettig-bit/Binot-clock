@@ -57,8 +57,8 @@ export async function sendNudge(userId: string, toast: (m: string) => void) {
 export function AlertsTab({ people }: { people: Profile[] }) {
   const toast = useToast();
   const [kind, setKind] = useState<Kind>("audit");
-  const [title, setTitle] = useState("ביקורת נוכחות");
-  const [body, setBody] = useState("נא לאשר נוכחות עכשיו");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [role, setRole] = useState<MemberType | "">("");
   const [minutes, setMinutes] = useState(15);
   const [busy, setBusy] = useState(false);
@@ -82,21 +82,20 @@ export function AlertsTab({ people }: { people: Profile[] }) {
     load();
   }, [load]);
 
-  function pickKind(k: Kind) {
-    setKind(k);
-    if (k === "audit" && (!title || title === "הודעה מהישיבה")) { setTitle("ביקורת נוכחות"); setBody("נא לאשר נוכחות עכשיו"); }
-    if (k === "message" && (!title || title === "ביקורת נוכחות")) { setTitle("הודעה מהישיבה"); setBody(""); }
-  }
+  const pickKind = (k: Kind) => setKind(k);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) {
-      toast("חסרה כותרת להתראה");
+    // ביקורת היא התראה אדומה קבועה, בלי טקסט. בהודעה כותבים כותרת וטקסט.
+    const t = kind === "audit" ? "ביקורת נוכחות" : title.trim();
+    const b = kind === "audit" ? "לחצו עכשיו לאישור נוכחות" : body.trim() || null;
+    if (!t) {
+      toast("חסרה כותרת להודעה");
       return;
     }
     setBusy(true);
     const { data: id, error } = await supabase().rpc("admin_create_spot_check", {
-      p_kind: kind, p_title: title.trim(), p_body: body.trim() || null, p_target_role: role || null, p_minutes: minutes,
+      p_kind: kind, p_title: t, p_body: b, p_target_role: role || null, p_minutes: minutes,
     });
     if (error) {
       setBusy(false);
@@ -125,12 +124,16 @@ export function AlertsTab({ people }: { people: Profile[] }) {
           <span><span className="num">{deviceUsers}</span> מתוך <span className="num">{active}</span> משתמשים פעילים הפעילו התראות</span>
         </div>
         <div className="chips" role="group" aria-label="סוג">
-          <button type="button" className="chip press" aria-pressed={kind === "audit"} onClick={() => pickKind("audit")}>ביקורת נוכחות (דורש אישור עם מיקום)</button>
-          <button type="button" className="chip press" aria-pressed={kind === "message"} onClick={() => pickKind("message")}>הודעה בלבד</button>
+          <button type="button" className="chip chip-red press" aria-pressed={kind === "audit"} onClick={() => pickKind("audit")}>🔴 התראת ביקורת</button>
+          <button type="button" className="chip press" aria-pressed={kind === "message"} onClick={() => pickKind("message")}>הודעה עם טקסט</button>
         </div>
         <div className="form-grid">
-          <label className="field">כותרת<input id="atitle" maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-          <label className="field">טקסט (לא חובה)<input id="abody" maxLength={300} value={body} onChange={(e) => setBody(e.target.value)} /></label>
+          {kind === "message" && (
+            <>
+              <label className="field">כותרת<input id="atitle" maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="למשל: שינוי בסדר היום" /></label>
+              <label className="field">טקסט<input id="abody" maxLength={300} value={body} onChange={(e) => setBody(e.target.value)} placeholder="מה רוצים לומר" /></label>
+            </>
+          )}
           <label className="field">למי
             <select id="arole" value={role} onChange={(e) => setRole(e.target.value as MemberType | "")}>
               <option value="">כולם</option>
@@ -147,11 +150,11 @@ export function AlertsTab({ people }: { people: Profile[] }) {
         </div>
         <p className="help" style={{ margin: 0 }}>
           {kind === "audit"
-            ? "כל מי שמקבל את ההתראה לוחץ עליה ומאשר נוכחות. המיקום נבדק בשרת, ואתה רואה בדוח מי בישיבה, מי מחוץ לה ומי לא הגיב."
-            : "הודעה רגילה, בלי צורך באישור."}{" "}
+            ? "התראה אדומה: \"🔴 ביקורת נוכחות\". היא נשארת על המסך עד שלוחצים עליה, ובאנדרואיד מגיעה עם רטט חזק. מי שלוחץ מאשר נוכחות עם מיקום, ואתה רואה בדוח מי בישיבה, מי מחוץ לה ומי לא הגיב."
+            : "הודעה רגילה עם הכותרת והטקסט שכתבת, בלי צורך באישור."}{" "}
           נדנוד לאדם מסוים שולחים מלשונית המשתמשים, או מתוך דוח ביקורת.
         </p>
-        <div><button className="btn primary press" type="submit" disabled={busy}>{busy ? "שולח…" : kind === "audit" ? "שליחת ביקורת" : "שליחת הודעה"}</button></div>
+        <div><button className={`btn press ${kind === "audit" ? "danger-fill" : "primary"}`} type="submit" disabled={busy}>{busy ? "שולח…" : kind === "audit" ? "🔴 שליחת התראת ביקורת" : "שליחת הודעה"}</button></div>
       </form>
 
       {openId && <AuditReport checkId={openId} check={history.find((h) => h.id === openId)} onClose={() => setOpenId(null)} />}

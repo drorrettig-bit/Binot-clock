@@ -10,10 +10,13 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { data = { title: "שעון נוכחות", body: event.data && event.data.text() }; }
-  const title = data.title || "שעון נוכחות";
+  const base = data.title || "שעון נוכחות";
+  // ביקורת: עיגול אדום בכותרת, רטט חזק, וההתראה נשארת עד שלוחצים
+  const title = data.audit && !base.startsWith("🔴") ? "🔴 " + base : base;
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
+      vibrate: data.audit ? [400, 150, 400, 150, 400] : [120],
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       tag: data.tag,

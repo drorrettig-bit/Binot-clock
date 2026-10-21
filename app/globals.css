@@ -146,12 +146,13 @@ h1, h2, h3 { text-wrap: balance; }
 .notice { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: .9rem; }
 .notice-body { display: flex; flex-direction: column; gap: 2px; }
 .notice-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.audit { border-radius: 18px; padding: 16px; background: var(--brass-soft); border: 1px solid color-mix(in srgb, var(--brand-purple) 35%, transparent); display: flex; flex-direction: column; gap: 8px; }
-.audit.hl { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-purple) 35%, transparent); }
+.audit { border-radius: 18px; padding: 16px; background: var(--bad-bg); border: 2px solid var(--bad); display: flex; flex-direction: column; gap: 8px; }
+.audit.hl { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 30%, transparent); }
+.audit .primary-btn { background: var(--bad); color: #fff; box-shadow: 0 8px 18px -10px var(--bad); }
 .audit h3 { margin: 0; font-size: 1.15rem; }
 .audit p { margin: 0; }
 .audit-head { display: flex; justify-content: space-between; align-items: center; font-size: .82rem; }
-.audit-badge { background: var(--brand-purple); color: #fff; border-radius: 999px; padding: 2px 10px; font-weight: 700; letter-spacing: .02em; }
+.audit-badge { background: var(--bad); color: #fff; border-radius: 999px; padding: 2px 10px; font-weight: 700; letter-spacing: .02em; }
 
 /* install sheet */
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(15, 10, 25, .45); z-index: 30; display: flex; align-items: flex-end; justify-content: center;
@@ -190,6 +191,9 @@ h1, h2, h3 { text-wrap: balance; }
 .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 @media (hover: hover) and (pointer: fine) { .chip:not([aria-pressed="true"]):hover { color: var(--ink); border-color: var(--accent); } }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-red[aria-pressed="true"] { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.danger-fill { background: var(--bad); border-color: var(--bad); color: #fff; }
+@media (hover: hover) and (pointer: fine) { .btn.danger-fill:hover:not(:disabled) { color: #fff; filter: brightness(1.08); } }
 .note-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 .fix-row td { background: var(--surface-2); border-top: 0; }
 .fix { display: grid; gap: 10px; padding-block: 4px 8px; white-space: normal; }
