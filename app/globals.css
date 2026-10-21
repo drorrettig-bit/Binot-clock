@@ -175,6 +175,12 @@ h1, h2, h3 { text-wrap: balance; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ---------- admin ---------- */
+.chip { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 999px; padding: 6px 13px; font-size: .86rem; font-weight: 600; cursor: pointer; color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+@media (hover: hover) and (pointer: fine) { .chip:not([aria-pressed="true"]):hover { color: var(--ink); border-color: var(--accent); } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tile-link { text-align: start; cursor: pointer; font: inherit; color: inherit; }
+@media (hover: hover) and (pointer: fine) { .tile-link:hover { border-color: var(--accent); } }
 .head { background: var(--header); color: var(--header-ink); border-bottom: 1px solid var(--header-line); position: relative; }
 .head::after { content: ""; position: absolute; inset: auto 0 -1px 0; height: 3px; background: linear-gradient(90deg, var(--brand-blue), var(--brand-green) 50%, var(--brand-purple)); }
 .brand .sep { width: 1px; align-self: stretch; background: var(--header-line); }

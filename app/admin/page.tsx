@@ -45,6 +45,9 @@ function downloadCsv(name: string, rows: (string | number | null | undefined)[][
 export default function AdminPage() {
   const { profile, org, loading, reload } = useMe();
   const [tab, setTab] = useState<Tab>("log");
+  const [logPreset, setLogPreset] = useState<Preset>("approved");
+  const [logKey, setLogKey] = useState(0);
+  const openLog = (p: Preset) => { setLogPreset(p); setLogKey((k) => k + 1); setTab("log"); };
   const [people, setPeople] = useState<Profile[]>([]);
   const [tiles, setTiles] = useState({ inside: 0, checkins: 0, rejected: 0 });
 
@@ -115,7 +118,10 @@ export default function AdminPage() {
         <div className="tiles">
           <div className="card tile"><span className="k">בפנים כרגע</span><span className="v num">{tiles.inside}</span><span className="hint">מתוך {active} פעילים</span></div>
           <div className="card tile"><span className="k">כניסות היום</span><span className="v num">{tiles.checkins}</span><span className="hint">דיווחים מאושרים</span></div>
-          <div className="card tile"><span className="k">ניסיונות שנדחו היום</span><span className="v num">{tiles.rejected}</span><span className="hint">{tiles.rejected ? "פירוט ביומן, בסינון \"נדחו\"" : "אין דחיות"}</span></div>
+          <button type="button" className="card tile tile-link press" onClick={() => openLog("rejected")}>
+            <span className="k">ניסיונות שנדחו היום</span><span className="v num">{tiles.rejected}</span>
+            <span className="hint">{tiles.rejected ? "לחיצה מציגה מי נדחה ולמה" : "אין דחיות"}</span>
+          </button>
           <div className="card tile"><span className="k">משתמשים פעילים</span><span className="v num">{active}</span><span className="hint">{listed.length - active} מושבתים · {people.length - listed.length} באמצע הרשמה</span></div>
         </div>
 
@@ -125,7 +131,7 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {tab === "log" && <LogTab people={listed} onChange={loadTiles} />}
+        {tab === "log" && <LogTab key={logKey} people={listed} onChange={loadTiles} initialPreset={logPreset} />}
         {tab === "hours" && <HoursTab />}
         {tab === "users" && <UsersTab people={people} me={profile!} onChange={loadPeople} />}
         {tab === "settings" && org && <SettingsTab org={org} onSaved={reload} />}
@@ -135,42 +141,78 @@ export default function AdminPage() {
 }
 
 /* ---------------- log ---------------- */
-function LogTab({ people, onChange }: { people: Profile[]; onChange: () => void }) {
+type Preset = "all" | "approved" | "rejected" | "rejected_distance" | "rejected_accuracy" | "rejected_sequence" | "rejected_inactive" | "manual";
+const PRESETS: { key: Preset; label: string; file: string }[] = [
+  { key: "all", label: "כל הדיווחים", file: "all" },
+  { key: "approved", label: "מאושרים", file: "approved" },
+  { key: "rejected", label: "כל מי שנדחה", file: "rejected" },
+  { key: "rejected_distance", label: "נדחו: מחוץ לרדיוס", file: "rejected_distance" },
+  { key: "rejected_accuracy", label: "נדחו: GPS לא מדויק", file: "rejected_gps" },
+  { key: "rejected_sequence", label: "נדחו: רצף שגוי", file: "rejected_sequence" },
+  { key: "rejected_inactive", label: "נדחו: משתמש מושבת", file: "rejected_inactive" },
+  { key: "manual", label: "תיקונים ידניים", file: "manual" },
+];
+
+type PersonRow = {
+  user_id: string; full_name: string; national_id: string | null; member_type: MemberType | null; is_active: boolean;
+  approved: number; rejected: number; topReason: string; last: string;
+};
+
+function byPerson(rows: SearchRow[]): PersonRow[] {
+  const m = new Map<string, PersonRow & { reasons: Map<string, number> }>();
+  for (const r of rows) {
+    let p = m.get(r.user_id);
+    if (!p) {
+      p = { user_id: r.user_id, full_name: r.full_name, national_id: r.national_id, member_type: r.member_type, is_active: r.is_active,
+            approved: 0, rejected: 0, topReason: "", last: r.recorded_at, reasons: new Map() };
+      m.set(r.user_id, p);
+    }
+    if (r.status === "approved") p.approved++;
+    else { p.rejected++; p.reasons.set(r.status, (p.reasons.get(r.status) ?? 0) + 1); }
+    if (r.recorded_at > p.last) p.last = r.recorded_at;
+  }
+  return [...m.values()].map(({ reasons, ...p }) => {
+    const top = [...reasons.entries()].sort((a, b) => b[1] - a[1])[0];
+    return { ...p, topReason: top ? STATUS_LABEL[top[0] as keyof typeof STATUS_LABEL].text : "" };
+  });
+}
+
+function LogTab({ people, onChange, initialPreset }: { people: Profile[]; onChange: () => void; initialPreset: Preset }) {
   const toast = useToast();
   const [q, setQ] = useState("");
   const [role, setRole] = useState<MemberType | "">("");
-  const [from, setFrom] = useState(daysAgo(6));
+  const [from, setFrom] = useState(initialPreset === "approved" ? daysAgo(6) : dayKey());
   const [to, setTo] = useState(dayKey());
-  const [status, setStatus] = useState<"approved" | "rejected" | "all">("approved");
+  const [preset, setPreset] = useState<Preset>(initialPreset);
+  const [view, setView] = useState<"rows" | "people">("rows");
   const [rows, setRows] = useState<SearchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [showManual, setShowManual] = useState(false);
 
-  const fetchRows = useCallback(
-    async (limit: number) => {
-      const { data, error } = await supabase().rpc("search_attendance", {
-        p_query: q.trim() || null,
-        p_member_type: role || null,
-        p_from: from || null,
-        p_to: to || null,
-        p_status: status === "approved" ? "approved" : null,
-        p_include_inactive: true,
-        p_limit: limit,
-        p_offset: 0,
-      });
-      if (error) throw error;
-      let r = (data as SearchRow[]) ?? [];
-      if (status === "rejected") r = r.filter((x) => x.status !== "approved");
-      return r;
-    },
-    [q, role, from, to, status],
-  );
+  const fetchRows = useCallback(async () => {
+    const serverStatus = preset === "approved" || preset.startsWith("rejected_") ? preset : null;
+    const { data, error } = await supabase().rpc("search_attendance", {
+      p_query: q.trim() || null,
+      p_member_type: role || null,
+      p_from: from || null,
+      p_to: to || null,
+      p_status: serverStatus,
+      p_include_inactive: true,
+      p_limit: 1000,
+      p_offset: 0,
+    });
+    if (error) throw error;
+    let r = (data as SearchRow[]) ?? [];
+    if (preset === "rejected") r = r.filter((x) => x.status !== "approved");
+    if (preset === "manual") r = r.filter((x) => x.source === "admin_manual");
+    return r;
+  }, [q, role, from, to, preset]);
 
   useEffect(() => {
     const t = setTimeout(async () => {
       setBusy(true);
       try {
-        setRows(await fetchRows(300));
+        setRows(await fetchRows());
       } catch (e) {
         toast(friendlyError(e));
       }
@@ -179,25 +221,46 @@ function LogTab({ people, onChange }: { people: Profile[]; onChange: () => void 
     return () => clearTimeout(t);
   }, [fetchRows, toast]);
 
-  async function exportCsv() {
-    try {
-      const all = await fetchRows(1000);
-      downloadCsv(`attendance_${from}_${to}.csv`, [
+  const people_ = useMemo(() => {
+    const list = byPerson(rows);
+    return preset === "approved" ? list.sort((a, b) => a.full_name.localeCompare(b.full_name, "he"))
+                                 : list.sort((a, b) => b.rejected - a.rejected || a.full_name.localeCompare(b.full_name, "he"));
+  }, [rows, preset]);
+
+  const presetInfo = PRESETS.find((p) => p.key === preset)!;
+  const truncated = rows.length >= 1000;
+
+  function exportCsv() {
+    const base = `attendance_${presetInfo.file}_${from}_${to}`;
+    if (view === "people") {
+      downloadCsv(`${base}_by_person.csv`, [
+        ["שם", "ת.ז", "תפקיד", "פעיל", "דיווחים מאושרים", "ניסיונות שנדחו", "סיבה עיקרית לדחייה", "דיווח אחרון"],
+        ...people_.map((p) => [p.full_name, p.national_id, p.member_type ? ROLE_LABEL[p.member_type] : "", p.is_active ? "כן" : "לא",
+          p.approved, p.rejected, p.topReason, `${fmtDate(p.last)} ${fmtTime(p.last)}`]),
+      ]);
+    } else {
+      downloadCsv(`${base}.csv`, [
         ["תאריך", "שעה", "שם", "ת.ז", "תפקיד", "פעולה", "סטטוס", "מרחק (מ)", "מקור", "הערה"],
-        ...all.map((r) => [
+        ...rows.map((r) => [
           fmtDate(r.recorded_at), fmtTime(r.recorded_at), r.full_name, r.national_id,
           r.member_type ? ROLE_LABEL[r.member_type] : "", ACTION_LABEL[r.action], STATUS_LABEL[r.status].text,
           r.distance_m != null ? Math.round(r.distance_m) : "", r.source === "admin_manual" ? "תיקון ידני" : "GPS", r.note,
         ]),
       ]);
-      if (all.length === 1000) toast("יוצאו 1,000 השורות הראשונות. צמצם את טווח התאריכים לייצוא מלא.");
-    } catch (e) {
-      toast(friendlyError(e));
     }
+    if (truncated) toast("יוצאו 1,000 הרשומות האחרונות. לייצוא מלא צריך לצמצם את טווח התאריכים.");
   }
 
   return (
     <>
+      <div className="chips" role="group" aria-label="איזו רשימה להציג" style={{ marginBottom: 12 }}>
+        {PRESETS.map((p) => (
+          <button key={p.key} type="button" className="chip press" aria-pressed={preset === p.key} onClick={() => setPreset(p.key)}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <div className="filters">
         <label className="grow">חיפוש לפי שם או ת.ז<input type="search" id="fq" value={q} onChange={(e) => setQ(e.target.value)} placeholder="ת.ז מלאה או חלק מהשם" /></label>
         <label>תפקיד
@@ -208,14 +271,13 @@ function LogTab({ people, onChange }: { people: Profile[]; onChange: () => void 
         </label>
         <label>מתאריך<input type="date" id="ffrom" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label>עד תאריך<input type="date" id="fto" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        <label>סטטוס
-          <select id="fstatus" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
-            <option value="approved">מאושרים</option>
-            <option value="rejected">נדחו</option>
-            <option value="all">הכל</option>
+        <label>תצוגה
+          <select id="fview" value={view} onChange={(e) => setView(e.target.value as typeof view)}>
+            <option value="rows">כל דיווח בשורה</option>
+            <option value="people">סיכום לפי אדם</option>
           </select>
         </label>
-        <button className="btn press" onClick={exportCsv}><DownloadIcon /> ייצוא CSV</button>
+        <button className="btn press" onClick={exportCsv} disabled={!rows.length}><DownloadIcon /> ייצוא הרשימה</button>
         <button className="btn press" onClick={() => setShowManual((v) => !v)}>תיקון ידני</button>
       </div>
 
@@ -225,39 +287,64 @@ function LogTab({ people, onChange }: { people: Profile[]; onChange: () => void 
           onDone={() => {
             setShowManual(false);
             onChange();
-            fetchRows(300).then(setRows).catch(() => {});
+            fetchRows().then(setRows).catch(() => {});
           }}
         />
       )}
 
       <div className="card">
         <div className="tablebox">
-          <table>
-            <thead>
-              <tr><th>תאריך</th><th>שעה</th><th>שם</th><th>ת.ז</th><th>תפקיד</th><th>פעולה</th><th>סטטוס</th><th>מרחק</th><th>מקור</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.log_id} className={r.is_active ? "" : "off"}>
-                  <td className="num">{fmtDate(r.recorded_at)}</td>
-                  <td className="num">{fmtTime(r.recorded_at)}</td>
-                  <td><span className="who">{r.full_name}</span>{!r.is_active && <> <span className="pill neutral">מושבת</span></>}</td>
-                  <td className="num mono">{r.national_id}</td>
-                  <td>{r.member_type ? ROLE_LABEL[r.member_type] : "—"}</td>
-                  <td>{ACTION_LABEL[r.action]}</td>
-                  <td><span className={`pill ${STATUS_LABEL[r.status].tone}`}>{STATUS_LABEL[r.status].text}</span></td>
-                  <td className="num">{r.distance_m != null ? `${Math.round(r.distance_m)} מ'` : "—"}</td>
-                  <td>{r.source === "admin_manual" ? <span className="pill warn" title={r.note ?? ""}>תיקון ידני</span> : <span className="muted">GPS</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length && <div className="empty">{busy ? "טוען…" : "לא נמצאו רשומות לפי הסינון"}</div>}
+          {view === "rows" ? (
+            <table>
+              <thead>
+                <tr><th>תאריך</th><th>שעה</th><th>שם</th><th>ת.ז</th><th>תפקיד</th><th>פעולה</th><th>סטטוס</th><th>מרחק</th><th>מקור</th></tr>
+              </thead>
+              <tbody>
+                {rows.slice(0, 300).map((r) => (
+                  <tr key={r.log_id} className={r.is_active ? "" : "off"}>
+                    <td className="num">{fmtDate(r.recorded_at)}</td>
+                    <td className="num">{fmtTime(r.recorded_at)}</td>
+                    <td><span className="who">{r.full_name}</span>{!r.is_active && <> <span className="pill neutral">מושבת</span></>}</td>
+                    <td className="num mono">{r.national_id}</td>
+                    <td>{r.member_type ? ROLE_LABEL[r.member_type] : "—"}</td>
+                    <td>{ACTION_LABEL[r.action]}</td>
+                    <td><span className={`pill ${STATUS_LABEL[r.status].tone}`}>{STATUS_LABEL[r.status].text}</span></td>
+                    <td className="num">{r.distance_m != null ? `${Math.round(r.distance_m)} מ'` : "—"}</td>
+                    <td>{r.source === "admin_manual" ? <span className="pill warn" title={r.note ?? ""}>תיקון ידני</span> : <span className="muted">GPS</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table>
+              <thead>
+                <tr><th>שם</th><th>ת.ז</th><th>תפקיד</th><th>מאושרים</th><th>נדחו</th><th>סיבה עיקרית לדחייה</th><th>דיווח אחרון</th></tr>
+              </thead>
+              <tbody>
+                {people_.map((p) => (
+                  <tr key={p.user_id} className={p.is_active ? "" : "off"}>
+                    <td><span className="who">{p.full_name}</span>{!p.is_active && <> <span className="pill neutral">מושבת</span></>}</td>
+                    <td className="num mono">{p.national_id}</td>
+                    <td>{p.member_type ? ROLE_LABEL[p.member_type] : "—"}</td>
+                    <td className="num">{p.approved}</td>
+                    <td className="num">{p.rejected ? <b style={{ color: "var(--bad)" }}>{p.rejected}</b> : 0}</td>
+                    <td>{p.topReason || <span className="muted">—</span>}</td>
+                    <td className="num">{fmtDate(p.last)} {fmtTime(p.last)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {!rows.length && <div className="empty">{busy ? "טוען…" : "אין רשומות ברשימה הזו בטווח שנבחר"}</div>}
         </div>
       </div>
       <div className="meta">
-        <span>{rows.length ? `${rows[0]?.total_count ?? rows.length} רשומות${rows.length < (rows[0]?.total_count ?? 0) ? ` · מוצגות ${rows.length} האחרונות` : ""}` : ""}</span>
-        <span>הייצוא כולל עד 1,000 שורות לפי הסינון</span>
+        <span>
+          {view === "rows"
+            ? `${rows.length}${truncated ? "+" : ""} רשומות${rows.length > 300 ? " · מוצגות 300 האחרונות, הייצוא כולל את כולן" : ""}`
+            : `${people_.length} אנשים · ${rows.length}${truncated ? "+" : ""} רשומות`}
+        </span>
+        <span>{presetInfo.label} · <span className="num">{from.split("-").reverse().join("/")}</span> עד <span className="num">{to.split("-").reverse().join("/")}</span></span>
       </div>
     </>
   );
