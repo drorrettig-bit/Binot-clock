@@ -17,13 +17,13 @@ export function friendlyError(err: unknown): string {
   if (code === "42501" || msg.includes("forbidden") || msg.includes("permission denied"))
     return msg && /[א-ת]/.test(msg) ? msg : "אין לך הרשאה לפעולה הזו.";
   if (msg.toLowerCase().includes("token has expired") || msg.toLowerCase().includes("invalid"))
-    return "הקוד שגוי או שפג תוקפו. בקש קוד חדש.";
+    return "הקישור לא תקף או שפג תוקפו. בקשו מייל חדש.";
   if (msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("security purposes"))
-    return "נשלחו יותר מדי קודים. המתן דקה ונסה שוב.";
+    return "נשלחו יותר מדי מיילים. המתינו דקה ונסו שוב.";
   if (msg.toLowerCase().includes("not authorized") && msg.toLowerCase().includes("email"))
     return "שרת המייל עוד לא מוגדר לשליחה לכתובת הזו. פנה למנהל המערכת.";
   if (msg.toLowerCase().includes("sending") && msg.toLowerCase().includes("email") || code === "unexpected_failure")
-    return "לא הצלחנו לשלוח את המייל עם הקוד. נסו שוב בעוד דקה, ואם זה חוזר, פנו למנהל המערכת.";
+    return "לא הצלחנו לשלוח את מייל הכניסה. נסו שוב בעוד דקה, ואם זה חוזר, פנו למנהל המערכת.";
   if (msg.toLowerCase().includes("failed to fetch"))
     return "אין חיבור לאינטרנט. בדוק את החיבור ונסה שוב.";
   return msg && /[א-ת]/.test(msg) ? msg : "משהו השתבש. נסה שוב בעוד רגע.";

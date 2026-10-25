@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { friendlyError } from "@/lib/errors";
@@ -12,71 +12,78 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [step, setStep] = useState<"email" | "sent">("email");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("link") === "expired")
-      setError("הקישור מהמייל כבר לא תקף. בקשו קוד חדש.");
+      setError("הקישור מהמייל כבר לא תקף. בקשו קישור חדש.");
   }, []);
-  const [info, setInfo] = useState("");
-  const codeRef = useRef<HTMLInputElement>(null);
 
-  async function sendCode(e?: React.FormEvent) {
+  // אם הקישור נפתח בלשונית אחרת של אותו דפדפן, החיבור משותף. ממשיכים אוטומטית.
+  const checkSignedIn = useCallback(async () => {
+    const { data } = await supabase().auth.getUser();
+    if (data.user) {
+      router.replace("/");
+      router.refresh();
+      return true;
+    }
+    return false;
+  }, [router]);
+
+  useEffect(() => {
+    if (step !== "sent") return;
+    const t = setInterval(checkSignedIn, 3000);
+    const onVis = () => document.visibilityState === "visible" && checkSignedIn();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [step, checkSignedIn]);
+
+  async function sendLink(e?: React.FormEvent) {
     e?.preventDefault();
     const clean = email.trim().toLowerCase();
     if (!EMAIL_RE.test(clean)) {
       setError("כתובת האימייל לא תקינה. בדקו שאין רווחים ושיש @.");
-      return;
+      return false;
     }
     setBusy(true);
     setError("");
     const { error } = await supabase().auth.signInWithOtp({
       email: clean,
-      // אם המשתמש לוחץ על הקישור במייל במקום להקליד את הקוד, הוא חוזר לאתר הזה
       options: { shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     setBusy(false);
     if (error) {
       setError(friendlyError(error));
-      return;
+      return false;
     }
     setEmail(clean);
-    setCode("");
-    setStep("code");
+    setStep("sent");
     setInfo("");
-    setTimeout(() => codeRef.current?.focus(), 50);
-  }
-
-  async function verify(value: string) {
-    if (value.length !== 6) {
-      setError("הקוד כולל 6 ספרות.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    const { error } = await supabase().auth.verifyOtp({ email, token: value, type: "email" });
-    if (error) {
-      setBusy(false);
-      setError(friendlyError(error));
-      return;
-    }
-    // החיבור נשמר. ההפניה למסך הבית או להשלמת פרטים נעשית שם.
-    router.replace("/");
-    router.refresh();
+    return true;
   }
 
   async function resend() {
-    await sendCode();
-    setInfo("נשלח קוד חדש. הקוד הקודם בוטל.");
+    if (await sendLink()) setInfo("נשלח מייל חדש. הקישור הקודם בוטל.");
+  }
+
+  async function already() {
+    setBusy(true);
+    const ok = await checkSignedIn();
+    setBusy(false);
+    if (!ok) setInfo("עוד לא זוהתה כניסה. פתחו את הקישור מהמייל, ואם צריך חזרו לכאן.");
   }
 
   return (
     <main className="app">
       {step === "email" ? (
-        <form className="section enter" style={{ gap: 18 }} onSubmit={sendCode} noValidate>
+        <form className="section enter" style={{ gap: 18 }} onSubmit={sendLink} noValidate>
           <div className="auth-hero">
             <Logo height={150} className="auth-logo" />
             <h1>{APP_NAME}</h1>
@@ -98,55 +105,33 @@ export default function LoginPage() {
           </label>
           {error && <p className="err" role="alert">{error}</p>}
           <button className="primary-btn press" type="submit" disabled={busy}>
-            {busy ? "שולח…" : "שלחו לי קוד כניסה"}
+            {busy ? "שולח…" : "שלחו לי מייל לכניסה"}
           </button>
-          <p className="fine">אין סיסמה לזכור. נכנסים פעם אחת עם קוד מהמייל, והאפליקציה זוכרת אתכם במכשיר הזה.</p>
+          <p className="fine">אין סיסמה לזכור. נכנסים פעם אחת דרך קישור במייל, והאפליקציה זוכרת אתכם במכשיר הזה.</p>
         </form>
       ) : (
-        <form
-          className="section enter"
-          style={{ gap: 16, paddingTop: 24 }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            verify(code);
-          }}
-          noValidate
-        >
-          <button type="button" className="back" onClick={() => { setStep("email"); setError(""); }}>
+        <div className="section enter" style={{ gap: 16, paddingTop: 24 }}>
+          <button type="button" className="back" onClick={() => { setStep("email"); setError(""); setInfo(""); }}>
             <BackIcon width={16} height={16} /> שינוי כתובת
           </button>
           <h1 className="title">בדקו את המייל</h1>
           <p className="lead">
-            שלחנו מייל אל <b className="ltr">{email}</b>. אפשר להקליד כאן את הקוד מהמייל, או ללחוץ על הקישור שבו. אם המייל לא מופיע, כדאי לבדוק בתיקיית הספאם.
+            שלחנו מייל אל <b className="ltr">{email}</b>. לחצו על הקישור שבמייל, והכניסה תושלם אוטומטית.
+            אם המייל לא מופיע, כדאי לבדוק בתיקיית הספאם.
           </p>
-          <label className="field" htmlFor="otp">
-            קוד כניסה
-            <input
-              id="otp"
-              ref={codeRef}
-              className="otp"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              placeholder="••••••"
-              value={code}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                setCode(v);
-                if (v.length === 6) verify(v);
-              }}
-              aria-invalid={!!error}
-            />
-          </label>
+          <p className="help">
+            חשוב: לפתוח את הקישור באותו טלפון. ב-iPhone, אם האפליקציה כבר מותקנת במסך הבית, הקישור ייפתח ב-Safari.
+            אחרי הכניסה שם, פותחים את האפליקציה מהאייקון.
+          </p>
           {error && <p className="err" role="alert">{error}</p>}
           {info && <p className="help ok">{info}</p>}
-          <button className="primary-btn press" type="submit" disabled={busy}>
-            {busy ? "בודק…" : "כניסה"}
+          <button type="button" className="primary-btn press" onClick={already} disabled={busy}>
+            {busy ? "בודק…" : "כבר לחצתי על הקישור"}
           </button>
           <button type="button" className="linkish" onClick={resend} disabled={busy}>
             לא הגיע? שליחה חוזרת
           </button>
-        </form>
+        </div>
       )}
     </main>
   );
